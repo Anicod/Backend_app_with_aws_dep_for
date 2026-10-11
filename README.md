@@ -61,3 +61,33 @@ If you see a screen telling you that some services need to be restarted, press E
 
 if do the code change redeploy follow the below the steps
 code change-->build jar-->upload jar-->restart the service
+
+
+##### Automatic deployment steps #########
+Configure GitHub Actions secrets
+GitHub Actions needs your EC2 connection details. We'll store them as encrypted repository secrets instead of hardcoding them in the workflow.
+Open your repository on GitHub and go to:
+Settings → Secrets and variables → Actions → New repository secret
+add the following secrets:
+Name: EC2_HOST
+Value: <your EC2 public IP address>
+Name: EC2_USER
+Value: <your EC2 username, e.g., ubuntu>
+Name: EC2_KEY
+Value: <your private key content, i.e., the content of your .pem file>  
+Private key (ec2_deploy_key) - Keep this SECRET, only you/GitHub has it
+Private key (ec2_deploy_key) - Keep this SECRET, only you/GitHub has it
+Connect to your EC2 instance
+ssh -i your-existing-ec2-key.pem ubuntu@your-ec2-ip-address
+Add the public key to EC2
+mkdir -p ~/.ssh
+cat >> ~/.ssh/authorized_keys << 'EOF'
+<PASTE YOUR PUBLIC KEY HERE>
+EOF
+Then set permissions:
+chmod 600 ~/.ssh/authorized_keys
+chmod 700 ~/.ssh
+ssh-keygen -p -N "" -m pem -f ec2_deploy_key (this will generate a new private key in PEM format)
+cat ec2_deploy_key
+Copy everything from -----BEGIN RSA PRIVATE KEY----- to -----END RSA PRIVATE KEY----- (the entire block).
+go to your GitHub repository, click on Settings → Secrets and variables → Actions → New repository secret, and add a new secret with the name EC2_KEY and paste the private key content you copied earlier.
