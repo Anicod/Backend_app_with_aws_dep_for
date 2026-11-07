@@ -1,21 +1,21 @@
 
-name: Build and Deploy to AWS EC2
+name: Build and Deploy Docker to EC2
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source code
+      - name: Checkout source
         uses: actions/checkout@v4
 
       - name: Set up Java 17
@@ -25,10 +25,29 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Build Spring Boot application
+      - name: Test and package
         run: |
           chmod +x mvnw
-          ./mvnw clean package
+          ./mvnw clean verify
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t "$REGISTRY/$REPOSITORY:$IMAGE_TAG" .
+          docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
 
       - name: Configure SSH
         env:
@@ -36,27 +55,39 @@ jobs:
           EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
-          echo "$EC2_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          echo "$EC2_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$EC2_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Copy JAR to EC2
+      - name: Deploy container to EC2
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          scp -i ~/.ssh/deploy_key \
-            target/hello-world-0.0.1-SNAPSHOT.jar \
-            "$EC2_USER@$EC2_HOST:/home/ubuntu/hello-world.jar"
+          REGISTRY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+          IMAGE="$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
-      - name: Restart Spring Boot service
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-        run: |
           ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" \
-            'sudo /usr/bin/systemctl restart hello-world'
+            "AWS_REGION='$AWS_REGION' AWS_ACCOUNT_ID='$AWS_ACCOUNT_ID' IMAGE='$IMAGE' bash -s" <<'REMOTE'
+          set -e
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | sudo docker login --username AWS --password-stdin \
+              "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+
+          sudo docker pull "$IMAGE"
+          sudo docker stop hello-world-container 2>/dev/null || true
+          sudo docker rm hello-world-container 2>/dev/null || true
+          sudo docker run -d \
+            --name hello-world-container \
+            --restart unless-stopped \
+            -p 8080:8080 \
+            "$IMAGE"
+          REMOTE
 
       - name: Verify deployment
         env:
@@ -71,5 +102,5 @@ jobs:
             fi
             sleep 5
           done
-          echo "Application health check failed"
+          echo "Health check failed"
           exit 1
