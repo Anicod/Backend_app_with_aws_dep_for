@@ -16,6 +16,6 @@ public class HelloController {
     }
     @GetMapping("/addtest")
     public String addingtest() {
-        return "Hello test from AWS Spring Boot";
+        return "Hello test from AWS in Spring Boot";
     }
 }
