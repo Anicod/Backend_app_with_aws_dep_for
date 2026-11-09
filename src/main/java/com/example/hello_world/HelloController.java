@@ -11,7 +11,7 @@ public class HelloController {
         return "Hello World from AWS Spring Boot! with Auto deploy using github actions with OIDC";
     }
     @GetMapping("/test")
-    public String hello() {
+    public String test() {
         return "Hello test from AWS Spring Boot";
     }
 }
