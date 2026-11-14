@@ -1,0 +1,5 @@
+app:
+  environment: DEV
+  message: This is the dev environment configuration.
+server:
+  port: 8080
