@@ -84,6 +84,7 @@ jobs:
           sudo docker rm hello-world-container 2>/dev/null || true
           sudo docker run -d \
             --name hello-world-container \
+            -e SPRING_PROFILES_ACTIVE=dev \
             --restart unless-stopped \
             -p 8080:8080 \
             "$IMAGE"
