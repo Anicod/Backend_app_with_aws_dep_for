@@ -1,0 +1,5 @@
+app:
+  environment: PROD
+  message: This is the prod environment configuration.
+server:
+  port: 8080
