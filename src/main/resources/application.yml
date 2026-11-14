@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: hello-world
+
+server:
+  port: 8080
+
+app:
+  name: Hello World Application
+  version: 1.0.0
