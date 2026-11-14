@@ -1,0 +1,5 @@
+app:
+  environment: LOCAL
+  message: This is the local environment configuration.
+server:
+  port: 8081
