@@ -1,3 +1,6 @@
+spring:
+  profiles:
+    active: dev
 app:
   environment: DEV
   message: This is the dev environment configuration.
